@@ -1,0 +1,6 @@
+chunks.pkl
+dd.
+faiss_index.bin
+pdf_files.pkl
+.env
+.venv
