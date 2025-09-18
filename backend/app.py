@@ -104,10 +104,10 @@ def extract_text_from_youtube(url):
         ytt_api = YouTubeTranscriptApi()
 
         # Fetch transcript (with language priority)
-        fetched_transcript = ytt_api.get_transcript(video_id, languages=['en'])
+        fetched_transcript = ytt_api.fetch(video_id, languages=['en'])
 
         # Convert transcript object to raw data
-        raw_transcript = fetched_transcript
+        raw_transcript = fetched_transcript.to_raw_data()
 
         # Join into a single text string
         text = " ".join([entry['text'] for entry in raw_transcript])
@@ -118,7 +118,6 @@ def extract_text_from_youtube(url):
         error_msg = f"Error extracting YouTube transcript: {str(e)}"
         logger.error(f"❌ {error_msg}")
         raise ValueError(error_msg)
-
 def extract_text_from_pdf(file_path):
     """Extract text from PDF with better error handling"""
     try:
