@@ -10,7 +10,6 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 import io
 import json
-
 # Page configuration
 st.set_page_config(
     page_title="StudyMate - AI Learning Platform",
@@ -18,25 +17,24 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
-
 # Custom CSS for attractive styling
 st.markdown("""
 <style>
     /* Import Google Fonts */
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-    
+   
     /* Main app styling */
     .stApp {
         background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
         font-family: 'Inter', sans-serif;
     }
-    
+   
     /* Sidebar styling */
     .css-1d391kg {
         background: linear-gradient(180deg, #1e1e2e 0%, #2a2a3e 100%);
         border-right: 1px solid rgba(99, 102, 241, 0.2);
     }
-    
+   
     /* Main content area */
     .main .block-container {
         padding: 2rem 3rem;
@@ -46,7 +44,7 @@ st.markdown("""
         margin: 1rem;
         border: 1px solid rgba(99, 102, 241, 0.1);
     }
-    
+   
     /* Custom title styling */
     .main-title {
         background: linear-gradient(135deg, #6366f1, #a855f7, #06b6d4);
@@ -58,7 +56,7 @@ st.markdown("""
         margin-bottom: 2rem;
         text-shadow: 0 0 30px rgba(99, 102, 241, 0.3);
     }
-    
+   
     /* Quiz question styling */
     .quiz-question {
         background: rgba(99, 102, 241, 0.1);
@@ -68,7 +66,7 @@ st.markdown("""
         margin: 1rem 0;
         color: #ffffff;
     }
-    
+   
     /* Quiz result styling */
     .quiz-result-correct {
         background: rgba(16, 185, 129, 0.1);
@@ -78,7 +76,7 @@ st.markdown("""
         margin: 0.5rem 0;
         color: #10b981;
     }
-    
+   
     .quiz-result-incorrect {
         background: rgba(239, 68, 68, 0.1);
         border: 1px solid rgba(239, 68, 68, 0.3);
@@ -87,7 +85,7 @@ st.markdown("""
         margin: 0.5rem 0;
         color: #ef4444;
     }
-    
+   
     /* Score card styling */
     .score-card {
         background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(168, 85, 247, 0.2));
@@ -98,7 +96,7 @@ st.markdown("""
         margin: 2rem 0;
         backdrop-filter: blur(10px);
     }
-    
+   
     /* Tab styling */
     .stTabs [data-baseweb="tab-list"] {
         gap: 20px;
@@ -107,7 +105,7 @@ st.markdown("""
         border-radius: 15px;
         border: 1px solid rgba(99, 102, 241, 0.2);
     }
-    
+   
     .stTabs [data-baseweb="tab"] {
         background: rgba(99, 102, 241, 0.1);
         border-radius: 10px;
@@ -115,12 +113,12 @@ st.markdown("""
         border: 1px solid rgba(99, 102, 241, 0.2);
         transition: all 0.3s ease;
     }
-    
+   
     .stTabs [aria-selected="true"] {
         background: linear-gradient(135deg, #6366f1, #a855f7);
         box-shadow: 0 5px 15px rgba(99, 102, 241, 0.4);
     }
-    
+   
     /* Button styling */
     .stButton > button {
         background: linear-gradient(135deg, #6366f1, #a855f7);
@@ -132,12 +130,12 @@ st.markdown("""
         transition: all 0.3s ease;
         box-shadow: 0 5px 15px rgba(99, 102, 241, 0.3);
     }
-    
+   
     .stButton > button:hover {
         transform: translateY(-2px);
         box-shadow: 0 8px 25px rgba(99, 102, 241, 0.5);
     }
-    
+   
     /* Study card styling */
     .study-card {
         background: rgba(30, 30, 46, 0.8);
@@ -148,13 +146,13 @@ st.markdown("""
         backdrop-filter: blur(10px);
         transition: all 0.3s ease;
     }
-    
+   
     .study-card:hover {
         transform: translateY(-5px);
         box-shadow: 0 10px 30px rgba(99, 102, 241, 0.2);
         border-color: rgba(99, 102, 241, 0.4);
     }
-    
+   
     /* Answer box styling */
     .answer-box {
         background: rgba(16, 185, 129, 0.1);
@@ -164,7 +162,7 @@ st.markdown("""
         margin: 1rem 0;
         color: #ffffff;
     }
-    
+   
     .question-box {
         background: rgba(99, 102, 241, 0.1);
         border: 1px solid rgba(99, 102, 241, 0.3);
@@ -173,7 +171,7 @@ st.markdown("""
         margin: 1rem 0;
         color: #ffffff;
     }
-    
+   
     /* Sidebar menu styling */
     .sidebar-menu {
         background: rgba(30, 30, 46, 0.8);
@@ -184,17 +182,17 @@ st.markdown("""
         transition: all 0.3s ease;
         cursor: pointer;
     }
-    
+   
     .sidebar-menu:hover {
         background: rgba(99, 102, 241, 0.1);
         transform: translateX(5px);
     }
-    
+   
     /* Progress bar styling */
     .stProgress > div > div > div > div {
         background: linear-gradient(135deg, #6366f1, #a855f7);
     }
-    
+   
     /* File uploader styling */
     .stFileUploader > label > div {
         background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(168, 85, 247, 0.1));
@@ -202,12 +200,12 @@ st.markdown("""
         border-radius: 15px;
         transition: all 0.3s ease;
     }
-    
+   
     .stFileUploader > label > div:hover {
         border-color: rgba(99, 102, 241, 0.5);
         background: rgba(99, 102, 241, 0.15);
     }
-    
+   
     /* Metric cards */
     [data-testid="metric-container"] {
         background: rgba(30, 30, 46, 0.8);
@@ -216,7 +214,7 @@ st.markdown("""
         padding: 1rem;
         backdrop-filter: blur(10px);
     }
-    
+   
     /* Navigation button styling */
     .nav-button {
         background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(168, 85, 247, 0.1));
@@ -228,24 +226,23 @@ st.markdown("""
         transition: all 0.3s ease;
         text-align: left;
     }
-    
+   
     .nav-button:hover {
         background: rgba(99, 102, 241, 0.2);
         transform: translateX(5px);
     }
-    
+   
     .nav-button-active {
         background: linear-gradient(135deg, #6366f1, #a855f7);
         border-color: rgba(99, 102, 241, 0.6);
     }
 </style>
 """, unsafe_allow_html=True)
-
 # Configuration
 FLASK_API_URL = "http://localhost:5000/api/answer-question"
 FLASK_QUIZ_API_URL = "http://localhost:5000/api/generate-quiz"
 FLASK_EVAL_API_URL = "http://localhost:5000/api/evaluate-quiz"
-
+FLASK_PLAN_API_URL = "http://localhost:5000/api/generate-study-plan"
 # Initialize session state
 if 'current_page' not in st.session_state:
     st.session_state.current_page = 'study'
@@ -265,7 +262,10 @@ if 'quiz_results' not in st.session_state:
     st.session_state.quiz_results = None
 if 'quiz_history' not in st.session_state:
     st.session_state.quiz_history = []
-
+if 'study_plan' not in st.session_state:
+    st.session_state.study_plan = None
+if 'plans_generated' not in st.session_state:
+    st.session_state.plans_generated = 0
 # Function to call Flask API for Q&A
 def call_flask_api(source=None, youtube_url=None, question=None):
     """Call the Flask API to get answer for the question"""
@@ -290,7 +290,6 @@ def call_flask_api(source=None, youtube_url=None, question=None):
         return {"error": "Request timed out. The file or video might be too large or processing is taking too long.", "request_id": "N/A"}
     except Exception as e:
         return {"error": f"Unexpected error: {str(e)}", "request_id": "N/A"}
-
 # Function to call Flask API for quiz generation
 def generate_quiz_api(source=None, youtube_url=None, num_questions=5, difficulty='medium'):
     """Call the Flask API to generate quiz"""
@@ -319,7 +318,29 @@ def generate_quiz_api(source=None, youtube_url=None, num_questions=5, difficulty
         return {"error": "Request timed out. The file or video might be too large or processing is taking too long.", "request_id": "N/A"}
     except Exception as e:
         return {"error": f"Unexpected error: {str(e)}", "request_id": "N/A"}
-
+# Function to call Flask API for study plan generation
+def generate_study_plan_api(source=None, num_days=7):
+    """Call the Flask API to generate study plan"""
+    try:
+        data = {'num_days': num_days}
+        files = None
+        
+        if source:
+            files = {'file': (source.name, source.getvalue(), source.type)}
+        
+        response = requests.post(FLASK_PLAN_API_URL, files=files, data=data, timeout=120)
+        
+        if response.status_code == 200:
+            return response.json()
+        else:
+            error_data = response.json() if response.headers.get('content-type') == 'application/json' else {"error": response.text}
+            return {"error": error_data.get('error', 'Unknown error'), "request_id": error_data.get('request_id', 'N/A')}
+    except requests.exceptions.ConnectionError:
+        return {"error": "Cannot connect to Flask server. Please ensure it's running on http://localhost:5000", "request_id": "N/A"}
+    except requests.exceptions.Timeout:
+        return {"error": "Request timed out. The file or video might be too large or processing is taking too long.", "request_id": "N/A"}
+    except Exception as e:
+        return {"error": f"Unexpected error: {str(e)}", "request_id": "N/A"}
 # Function to evaluate quiz
 def evaluate_quiz_api(quiz_id, user_answers):
     """Call the Flask API to evaluate quiz"""
@@ -347,13 +368,12 @@ def evaluate_quiz_api(quiz_id, user_answers):
         return {"error": "Request timed out while evaluating quiz."}
     except Exception as e:
         return {"error": f"Unexpected error: {str(e)}"}
-
 # Function to create PDF from Q&A history
 def create_qa_pdf(qa_history):
     """Create a PDF document from Q&A history"""
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=1*inch, bottomMargin=1*inch)
-    
+   
     # Get styles
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
@@ -364,7 +384,7 @@ def create_qa_pdf(qa_history):
         textColor='#1f2937',
         alignment=1  # Center alignment
     )
-    
+   
     question_style = ParagraphStyle(
         'QuestionStyle',
         parent=styles['Heading2'],
@@ -373,7 +393,7 @@ def create_qa_pdf(qa_history):
         spaceAfter=12,
         spaceBefore=20
     )
-    
+   
     answer_style = ParagraphStyle(
         'AnswerStyle',
         parent=styles['Normal'],
@@ -382,36 +402,35 @@ def create_qa_pdf(qa_history):
         spaceAfter=20,
         leftIndent=20
     )
-    
+   
     # Build content
     content = []
-    
+   
     # Title
     content.append(Paragraph("StudyMate - Q&A Session Report", title_style))
     content.append(Spacer(1, 20))
-    
+   
     # Metadata
     content.append(Paragraph(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", styles['Normal']))
     content.append(Paragraph(f"Total Questions: {len(qa_history)}", styles['Normal']))
     content.append(Spacer(1, 30))
-    
+   
     # Q&A Content
     for i, qa in enumerate(qa_history, 1):
         content.append(Paragraph(f"Q{i}: {qa['question']}", question_style))
         content.append(Paragraph(f"Answer: {qa['answer']}", answer_style))
         content.append(Spacer(1, 10))
-    
+   
     # Build PDF
     doc.build(content)
     buffer.seek(0)
     return buffer
-
 # Function to create PDF from quiz results
 def create_quiz_pdf(quiz_data, user_answers, results):
     """Create a PDF document from quiz results"""
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=1*inch, bottomMargin=1*inch)
-    
+   
     # Get styles
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
@@ -422,7 +441,7 @@ def create_quiz_pdf(quiz_data, user_answers, results):
         textColor='#1f2937',
         alignment=1  # Center alignment
     )
-    
+   
     question_style = ParagraphStyle(
         'QuestionStyle',
         parent=styles['Heading2'],
@@ -431,7 +450,7 @@ def create_quiz_pdf(quiz_data, user_answers, results):
         spaceAfter=12,
         spaceBefore=20
     )
-    
+   
     answer_style = ParagraphStyle(
         'AnswerStyle',
         parent=styles['Normal'],
@@ -440,20 +459,20 @@ def create_quiz_pdf(quiz_data, user_answers, results):
         spaceAfter=10,
         leftIndent=20
     )
-    
+   
     # Build content
     content = []
-    
+   
     # Title
     content.append(Paragraph("StudyMate - Quiz Results Report", title_style))
     content.append(Spacer(1, 20))
-    
+   
     # Score summary
     content.append(Paragraph(f"Final Score: {results['score']:.1f}%", styles['Heading2']))
     content.append(Paragraph(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", styles['Normal']))
     content.append(Paragraph(f"Total Questions: {len(quiz_data['questions'])}", styles['Normal']))
     content.append(Spacer(1, 30))
-    
+   
     # Questions and answers
     for i, question_data in enumerate(quiz_data['questions']):
         result_detail = results['details'][i]
@@ -475,17 +494,16 @@ def create_quiz_pdf(quiz_data, user_answers, results):
         # Explanation
         content.append(Paragraph(f"Explanation: {result_detail['explanation']}", answer_style))
         content.append(Spacer(1, 15))
-    
+   
     # Build PDF
     doc.build(content)
     buffer.seek(0)
     return buffer
-
 # Sidebar Navigation
 with st.sidebar:
     st.markdown("<h1 style='color: #6366f1; text-align: center;'>🎓 StudyMate</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; color: #a1a1aa;'>AI-Powered Learning Platform</p>", unsafe_allow_html=True)
-    
+   
     # API Status Check
     try:
         status_response = requests.get("http://localhost:5000", timeout=5)
@@ -493,41 +511,45 @@ with st.sidebar:
     except:
         st.error("❌ Flask Server Disconnected")
         st.info("Please start the Flask server:\n```bash\npython app.py\n```")
-    
+   
     st.markdown("---")
-    
+   
     # Navigation Menu
     st.markdown("### 🧭 Navigation")
-    
+   
     nav_options = [
         ("📚 Study Center", "study"),
+        ("📅 Study Planner", "planner"),
         ("📝 Quiz Center", "quiz"),
         ("📊 Analytics", "analytics"),
         ("⚙️ Settings", "settings")
     ]
-    
+   
     for option_name, option_key in nav_options:
         button_class = "nav-button-active" if st.session_state.current_page == option_key else "nav-button"
         if st.button(option_name, key=f"nav_{option_key}", use_container_width=True):
             st.session_state.current_page = option_key
             st.rerun()
-    
+   
     st.markdown("---")
-    
+   
     # Quick Stats based on current page
     if st.session_state.current_page == 'study':
         st.markdown("### 📈 Study Stats")
         st.metric("Sources Processed", len(st.session_state.processed_sources))
         st.metric("Questions Asked", len(st.session_state.qa_history))
+    elif st.session_state.current_page == 'planner':
+        st.markdown("### 📅 Plan Stats")
+        st.metric("Plans Generated", st.session_state.plans_generated)
     elif st.session_state.current_page == 'quiz':
         st.markdown("### 🎯 Quiz Stats")
         st.metric("Quizzes Taken", len(st.session_state.quiz_history))
         if st.session_state.quiz_history:
             avg_score = sum([quiz['score'] for quiz in st.session_state.quiz_history]) / len(st.session_state.quiz_history)
             st.metric("Average Score", f"{avg_score:.1f}%")
-    
+   
     st.markdown("---")
-    
+   
     # Quick Actions
     st.markdown("### ⚡ Quick Actions")
     if st.button("🔄 Reset All Data", key="reset_all"):
@@ -539,16 +561,17 @@ with st.sidebar:
         st.session_state.user_answers = []
         st.session_state.quiz_submitted = False
         st.session_state.quiz_results = None
+        st.session_state.study_plan = None
+        st.session_state.plans_generated = 0
         st.success("All data reset!")
         st.rerun()
-
 # Main Content Area
 if st.session_state.current_page == 'study':
     st.markdown('<h1 class="main-title">📚 Study Center</h1>', unsafe_allow_html=True)
-    
+   
     # Study Mode Tabs
     tab1, tab2, tab3 = st.tabs(["📄 PDF Study", "🎵 Audio Study", "🎬 Video Study"])
-    
+   
     with tab1:
         st.markdown('<div class="study-card">', unsafe_allow_html=True)
         st.markdown("## 📄 PDF Study Module")
@@ -623,7 +646,7 @@ if st.session_state.current_page == 'study':
                 st.warning("⚠️ Please enter a question.")
         
         st.markdown('</div>', unsafe_allow_html=True)
-    
+   
     with tab2:
         st.markdown('<div class="study-card">', unsafe_allow_html=True)
         st.markdown("## 🎵 Audio Study Module")
@@ -691,7 +714,7 @@ if st.session_state.current_page == 'study':
                 st.warning("⚠️ Please enter a question.")
         
         st.markdown('</div>', unsafe_allow_html=True)
-    
+   
     with tab3:
         st.markdown('<div class="study-card">', unsafe_allow_html=True)
         st.markdown("## 🎬 Video Study Module")
@@ -761,7 +784,7 @@ if st.session_state.current_page == 'study':
                 st.warning("⚠️ Please enter a question.")
         
         st.markdown('</div>', unsafe_allow_html=True)
-    
+   
     # Q&A History Section
     if st.session_state.qa_history:
         st.markdown("---")
@@ -775,16 +798,80 @@ if st.session_state.current_page == 'study':
                 st.markdown(f"**🤖 Answer:** {qa['answer'][:200]}{'...' if len(qa['answer']) > 200 else ''}")
                 st.markdown(f"**📅 Time:** {datetime.fromisoformat(qa['timestamp']).strftime('%Y-%m-%d %H:%M:%S')}")
                 st.markdown('</div>', unsafe_allow_html=True)
-
+elif st.session_state.current_page == 'planner':
+    st.markdown('<h1 class="main-title">📅 Study Planner</h1>', unsafe_allow_html=True)
+    
+    tab1, = st.tabs(["📄 PDF Study Plan"])
+    
+    with tab1:
+        st.markdown('<div class="study-card">', unsafe_allow_html=True)
+        st.markdown("## 📄 Generate Study Plan from PDF")
+        
+        uploaded_pdf = st.file_uploader(
+            "Upload PDF file for study plan",
+            type=['pdf'],
+            help="Upload a PDF file to generate a study plan",
+            key="plan_pdf_uploader"
+        )
+        
+        if uploaded_pdf:
+            st.success(f"✅ PDF '{uploaded_pdf.name}' uploaded successfully!")
+            
+            num_days = st.selectbox(
+                "Select number of days to complete the study",
+                options=[3, 5, 7, 10, 14, 21, 30],
+                index=2,
+                key="plan_num_days"
+            )
+            
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                generate_plan_button = st.button(f"📅 Generate Study Plan for {num_days} Days", key="generate_plan", use_container_width=True)
+            with col2:
+                st.write(f"Days: {num_days}")
+            
+            if generate_plan_button:
+                if uploaded_pdf:
+                    with st.spinner("🗓️ Generating study plan... This may take a moment."):
+                        result = generate_study_plan_api(source=uploaded_pdf, num_days=num_days)
+                        
+                        if "error" in result:
+                            st.error(f"❌ Error: {result['error']} (Request ID: {result.get('request_id', 'N/A')})")
+                        else:
+                            st.session_state.study_plan = result
+                            st.session_state.plans_generated += 1
+                            st.success(f"✅ Study plan generated successfully for {num_days} days!")
+                            st.rerun()
+                else:
+                    st.warning("⚠️ Please upload a PDF file first.")
+        
+        if st.session_state.study_plan:
+            st.markdown("---")
+            st.markdown("## 📋 Your Study Plan")
+            
+            for day_data in st.session_state.study_plan.get('days', []):
+                with st.expander(f"**Day {day_data['day']}**: {', '.join(day_data['topics'][:3])}{'...' if len(day_data['topics']) > 3 else ''}"):
+                    st.markdown("### **Topics to Cover:**")
+                    for topic in day_data['topics']:
+                        st.markdown(f"- {topic}")
+                    
+                    st.markdown("### **Suggested Tasks:**")
+                    for task in day_data['tasks']:
+                        st.markdown(f"- {task}")
+                    
+                    estimated_time = day_data.get('estimated_time', '2-3 hours')
+                    st.markdown(f"### **Estimated Time:** {estimated_time}")
+        
+        st.markdown('</div>', unsafe_allow_html=True)
 elif st.session_state.current_page == 'quiz':
     st.markdown('<h1 class="main-title">📝 Quiz Center</h1>', unsafe_allow_html=True)
-    
+   
     # Quiz Configuration in sidebar for quiz page
     if 'num_questions' not in st.session_state:
         st.session_state.num_questions = 5
     if 'difficulty' not in st.session_state:
         st.session_state.difficulty = 'medium'
-    
+   
     with st.sidebar:
         st.markdown("### 🎯 Quiz Settings")
         
@@ -810,10 +897,10 @@ elif st.session_state.current_page == 'quiz':
             st.session_state.quiz_results = None
             st.success("Quiz reset!")
             st.rerun()
-    
+   
     # Quiz Generation Tabs
     tab1, tab2, tab3 = st.tabs(["📄 PDF Quiz", "🎵 Audio Quiz", "🎬 Video Quiz"])
-    
+   
     with tab1:
         st.markdown('<div class="study-card">', unsafe_allow_html=True)
         st.markdown("## 📄 Generate Quiz from PDF")
@@ -854,7 +941,7 @@ elif st.session_state.current_page == 'quiz':
                     st.warning("⚠️ Please reset the current quiz before generating a new one.")
         
         st.markdown('</div>', unsafe_allow_html=True)
-    
+   
     with tab2:
         st.markdown('<div class="study-card">', unsafe_allow_html=True)
         st.markdown("## 🎵 Generate Quiz from Audio")
@@ -896,7 +983,7 @@ elif st.session_state.current_page == 'quiz':
                     st.warning("⚠️ Please reset the current quiz before generating a new one.")
         
         st.markdown('</div>', unsafe_allow_html=True)
-    
+   
     with tab3:
         st.markdown('<div class="study-card">', unsafe_allow_html=True)
         st.markdown("## 🎬 Generate Quiz from YouTube Video")
@@ -937,7 +1024,7 @@ elif st.session_state.current_page == 'quiz':
                     st.warning("⚠️ Please reset the current quiz before generating a new one.")
         
         st.markdown('</div>', unsafe_allow_html=True)
-    
+   
     # Quiz Display and Taking Section
     if st.session_state.quiz_data and not st.session_state.quiz_submitted:
         st.markdown("---")
@@ -1005,7 +1092,7 @@ elif st.session_state.current_page == 'quiz':
                             st.rerun()
         else:
             st.info(f"📝 Please answer all questions to submit the quiz. ({answered_questions}/{total_questions} completed)")
-    
+   
     # Quiz Results Section
     if st.session_state.quiz_results and st.session_state.quiz_submitted:
         st.markdown("---")
@@ -1072,12 +1159,11 @@ elif st.session_state.current_page == 'quiz':
             if st.button("📚 Back to Study", key="back_to_study"):
                 st.session_state.current_page = 'study'
                 st.rerun()
-
 elif st.session_state.current_page == 'analytics':
     st.markdown('<h1 class="main-title">📊 Analytics Dashboard</h1>', unsafe_allow_html=True)
-    
+   
     col1, col2 = st.columns(2)
-    
+   
     with col1:
         st.markdown('<div class="study-card">', unsafe_allow_html=True)
         st.markdown("### 📚 Study Analytics")
@@ -1091,7 +1177,7 @@ elif st.session_state.current_page == 'analytics':
             for qa in recent_qa:
                 st.markdown(f"- {qa['question'][:50]}...")
         st.markdown('</div>', unsafe_allow_html=True)
-    
+   
     with col2:
         st.markdown('<div class="study-card">', unsafe_allow_html=True)
         st.markdown("### 🎯 Quiz Analytics")
@@ -1115,7 +1201,7 @@ elif st.session_state.current_page == 'analytics':
                     avg = sum(scores) / len(scores)
                     st.markdown(f"- {diff.title()}: {avg:.1f}% ({len(scores)} quizzes)")
         st.markdown('</div>', unsafe_allow_html=True)
-    
+   
     # Combined History
     if st.session_state.qa_history or st.session_state.quiz_history:
         st.markdown("---")
@@ -1141,12 +1227,11 @@ elif st.session_state.current_page == 'analytics':
                     st.markdown(f"{score_color} **Quiz {i}:** {quiz['score']:.1f}% - {quiz['difficulty'].title()} ({quiz['total_questions']} questions)")
                     st.markdown(f"📅 {datetime.fromisoformat(quiz['timestamp']).strftime('%Y-%m-%d %H:%M')}")
                     st.markdown("---")
-
 elif st.session_state.current_page == 'settings':
     st.markdown('<h1 class="main-title">⚙️ Settings & Help</h1>', unsafe_allow_html=True)
-    
+   
     col1, col2 = st.columns(2)
-    
+   
     with col1:
         st.markdown('<div class="study-card">', unsafe_allow_html=True)
         st.markdown("### 🔧 Application Settings")
@@ -1177,7 +1262,7 @@ elif st.session_state.current_page == 'settings':
             )
         
         st.markdown('</div>', unsafe_allow_html=True)
-    
+   
     with col2:
         st.markdown('<div class="study-card">', unsafe_allow_html=True)
         st.markdown("### 📖 How to Use StudyMate")
@@ -1202,36 +1287,35 @@ elif st.session_state.current_page == 'settings':
         """)
         
         st.markdown('</div>', unsafe_allow_html=True)
-    
+   
     st.markdown("---")
     st.markdown('<div class="study-card">', unsafe_allow_html=True)
     st.markdown("### 🚀 System Requirements")
-    
+   
     col1, col2, col3 = st.columns(3)
-    
+   
     with col1:
         st.markdown("**File Support:**")
         st.markdown("- PDF documents")
         st.markdown("- MP3/WAV audio")
         st.markdown("- YouTube videos")
         st.markdown("- Max file size: 200MB")
-    
+   
     with col2:
         st.markdown("**Features:**")
         st.markdown("- AI-powered Q&A")
         st.markdown("- Automated quiz generation")
         st.markdown("- Progress tracking")
         st.markdown("- PDF report exports")
-    
+   
     with col3:
         st.markdown("**Requirements:**")
         st.markdown("- Flask server running")
         st.markdown("- Internet connection")
         st.markdown("- Modern web browser")
         st.markdown("- JavaScript enabled")
-    
+   
     st.markdown('</div>', unsafe_allow_html=True)
-
 # Footer
 st.markdown("---")
 st.markdown(
