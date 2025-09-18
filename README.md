@@ -1,71 +1,112 @@
-# 📘 StudyMate – AI Learning Platform  
+# StudyMate
 
-Welcome to **StudyMate**, an AI-powered platform that makes studying smarter and more interactive!  
-Upload PDFs, audio files, or YouTube videos, ask questions, and generate quizzes – all with AI assistance.  
+AI-powered study companion that lets you ask questions about your PDFs, audio files, and YouTube videos.
 
----
+## What it does
 
-## 🌟 Features  
+- Upload PDF files and ask questions about them
+- Upload audio files (MP3/WAV) and get answers about the content
+- Paste YouTube URLs and chat about the video content
+- Generate quizzes from your materials
+- Create study plans
+- Export your Q&A sessions as PDF reports
 
-### 📖 Study Center  
-- Upload PDFs, audio (MP3/WAV), or YouTube URLs.  
-- Ask questions and get AI-generated answers.  
-- Export Q&A history as PDF.  
+## Quick Setup
 
-### 📝 Quiz Center  
-- Generate customizable quizzes (3–20 questions, Easy/Medium/Hard).  
-- Review results with explanations.  
-- Download quizzes as PDFs.  
-
-### 📊 Analytics Dashboard  
-- Track study progress and quiz performance.  
-- View stats: total questions asked, quizzes taken, average score.  
-
-### ⚙️ Settings & Help  
-- Clear study/quiz data.  
-- Export complete Q&A history.  
-- User guide + system requirements.  
-
----
-
-## 🚀 Getting Started  
-
-### Prerequisites  
-- Python **3.8+**  
-- [Ollama](https://ollama.ai/) (AI inference)  
-- Node.js (optional for development)  
-- Modern browser (Chrome/Firefox)  
-
-### Installation  
-
+1. Clone the repo
 ```bash
-# Clone repository
-git clone https://github.com/your-repo/studymate.git
+git clone https://github.com/yourusername/studymate.git
 cd studymate
+```
 
-# Create virtual environment
-python -m venv venv
-# Activate it
-source venv/bin/activate   # Linux/Mac
-venv\Scripts\activate      # Windows
-
-# Install dependencies
+2. Install requirements
+```bash
 pip install -r requirements.txt
 ```
-###Run backend
+
+3. Install Ollama and pull the model
 ```bash
-# Activate it
-source venv/bin/activate   # Linux/Mac
-venv\Scripts\activate
-run python app.py
-```
-###Run Streamlit UI
-```bash
-# Activate it
-source venv/bin/activate   # Linux/Mac
-venv\Scripts\activate
-Streamlit run gpu.py
+# Install from https://ollama.ai
+ollama pull ibm/granite3.3:2b
+ollama serve
 ```
 
+4. Start the servers
+```bash
+# Terminal 1: Backend
+python backend/app.py
+
+# Terminal 2: Frontend
+streamlit run gpu.py
+```
+
+5. Open http://localhost:8501 in your browser
+
+## How to use
+
+1. **Upload a file** - PDF document or audio file (MP3/WAV)
+2. **Or paste YouTube URL** - Any YouTube video with captions
+3. **Ask questions** - Type your question about the content
+4. **Get AI answers** - Powered by local AI model
+5. **Generate quizzes** - Test yourself on the material
+6. **Download reports** - Export your Q&A sessions
+
+## API Endpoints
+
+- `POST /api/answer-question` - Ask questions about uploaded content
+- `POST /api/generate-quiz` - Create quizzes
+- `POST /api/generate-study-plan` - Make study schedules
+- `GET /api/health` - Check if server is running
+
+## Example API call
+```bash
+curl -X POST http://localhost:5000/api/answer-question \
+  -F "file=@mydocument.pdf" \
+  -F "question=What is this document about?"
+```
+
+## File Structure
+```
+studymate/
+├── backend/app.py          # Flask API server
+├── gpu.py                  # Streamlit web interface
+└── requirements.txt        # Python packages
+```
+
+## Requirements
+
+- Python 3.8+
+- Ollama (for AI model)
+- 4GB+ RAM
+
+## Supported Files
+
+- **Documents**: PDF files
+- **Audio**: MP3, WAV files  
+- **Video**: YouTube URLs
+
+## Troubleshooting
+
+**Can't connect to API?**
+- Make sure Flask server is running on port 5000
+- Check if Ollama is running: `ollama serve`
+
+**File won't upload?**
+- Check file size (max 200MB)
+- Make sure it's PDF, MP3, or WAV format
+
+**Slow responses?**
+- Large files take longer to process
+- Audio transcription can be slow
 
 
+## Contributing
+
+1. Fork the repo
+2. Make your changes
+3. Test them
+4. Submit a pull request
+
+## License
+
+MIT License
