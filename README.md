@@ -106,7 +106,3 @@ studymate/
 2. Make your changes
 3. Test them
 4. Submit a pull request
-
-## License
-
-MIT License
