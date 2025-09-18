@@ -51,3 +51,21 @@ venv\Scripts\activate      # Windows
 
 # Install dependencies
 pip install -r requirements.txt
+```
+###Run backend
+```bash
+# Activate it
+source venv/bin/activate   # Linux/Mac
+venv\Scripts\activate
+run python app.py
+```
+###Run Streamlit UI
+```bash
+# Activate it
+source venv/bin/activate   # Linux/Mac
+venv\Scripts\activate
+Streamlit run gpu.py
+```
+
+
+
