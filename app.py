@@ -16,20 +16,16 @@ import logging
 from datetime import datetime
 from youtube_transcript_api import YouTubeTranscriptApi
 from urllib.parse import urlparse, parse_qs
-
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
 app = Flask(__name__)
-CORS(app, resources={r"/": {"origins": ""}})  # Allow all origins for development
-
+CORS(app, resources={r"/*": {"origins": "*"}})  # Allow all origins for development
 # Configuration
 OLLAMA_MODEL = "ibm/granite3.3:2b"
 UPLOAD_FOLDER = tempfile.mkdtemp()
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024  # 200MB max file size
-
 # Initialize Embeddings
 embeddings = None
 try:
@@ -38,10 +34,9 @@ try:
 except Exception as e:
     logger.error(f"❌ Embedding initialization failed: {str(e)}")
     raise
-
 # Store processed documents in memory with FAISS indices
 document_store = {}
-
+quiz_store = {}
 @app.route('/', methods=['GET'])
 def health_check():
     """Health check endpoint"""
@@ -50,7 +45,6 @@ def health_check():
         "message": "StudyMate Flask API is running",
         "timestamp": datetime.now().isoformat()
     })
-
 def initialize_ollama():
     """Initialize and check Ollama connection"""
     try:
@@ -78,7 +72,6 @@ def initialize_ollama():
         error_msg = f"Failed to initialize Ollama: {str(e)}"
         logger.error(f"❌ {error_msg}")
         raise ValueError(error_msg)
-
 def get_video_id(url):
     """Extract the video ID from a YouTube URL"""
     try:
@@ -92,25 +85,19 @@ def get_video_id(url):
     except Exception as e:
         logger.error(f"❌ Error extracting video ID: {str(e)}")
         raise ValueError(f"Invalid YouTube URL: {str(e)}")
-
 def extract_text_from_youtube(url):
     """Extract transcript from YouTube video"""
     try:
         logger.info(f"🎥 Extracting transcript from YouTube URL: {url}")
         video_id = get_video_id(url)
-
         # Create instance of API
         ytt_api = YouTubeTranscriptApi()
-
         # Fetch transcript (with language priority)
         fetched_transcript = ytt_api.fetch(video_id, languages=['en'])
-
         # Convert transcript object to raw data
         raw_transcript = fetched_transcript.to_raw_data()
-
         # Join into a single text string
         text = " ".join([entry['text'] for entry in raw_transcript])
-
         logger.info(f"✅ Extracted {len(text)} characters from YouTube transcript")
         return text
     except Exception as e:
@@ -134,7 +121,6 @@ def extract_text_from_pdf(file_path):
         error_msg = f"Error extracting text from PDF: {str(e)}"
         logger.error(f"❌ {error_msg}")
         raise ValueError(error_msg)
-
 def transcribe_audio(file_path):
     """Transcribe audio with better error handling"""
     try:
@@ -170,16 +156,14 @@ def transcribe_audio(file_path):
         error_msg = f"Error transcribing audio: {str(e)}"
         logger.error(f"❌ {error_msg}")
         raise ValueError(error_msg)
-
 def clean_text(text):
     """Clean and normalize text"""
     if not text:
         return ""
     text = re.sub(r'\s+', ' ', text.strip())
-    text = re.sub(r'[^\w\s\.\,\!\?\;\:\-\(\)]', ' ', text)
+    text = re.sub(r'[^\w\s\.\,\!\?\;\:\-$$      $$]', ' ', text)
     text = re.sub(r'--- Page \d+ ---', '', text)
     return text
-
 def chunk_text(text, chunk_size=300, overlap=50):
     """Create overlapping chunks for better context preservation"""
     if not text:
@@ -202,7 +186,6 @@ def chunk_text(text, chunk_size=300, overlap=50):
         chunks.append(current_chunk.strip())
     logger.info(f"✅ Created {len(chunks)} text chunks")
     return chunks
-
 def create_faiss_index(chunks):
     """Create FAISS index with error handling"""
     if not chunks:
@@ -226,7 +209,6 @@ def create_faiss_index(chunks):
         error_msg = f"Error creating FAISS index: {str(e)}"
         logger.error(f"❌ {error_msg}")
         raise ValueError(error_msg)
-
 def retrieve_chunks(query, index, chunks, k=5):
     """Retrieve most relevant chunks with better scoring"""
     if index is None or not chunks:
@@ -253,7 +235,6 @@ def retrieve_chunks(query, index, chunks, k=5):
         error_msg = f"Error retrieving chunks: {str(e)}"
         logger.error(f"❌ {error_msg}")
         return []
-
 def construct_prompt(query, retrieved_chunks):
     """Construct a better prompt for RAG"""
     if retrieved_chunks:
@@ -261,14 +242,10 @@ def construct_prompt(query, retrieved_chunks):
     else:
         context = "No relevant context found in the uploaded document or video transcript."
     prompt = f"""You are StudyMate, an intelligent assistant that helps users understand and learn from their uploaded documents or YouTube videos.
-
 Based on the following context from the user's document or video transcript, provide a comprehensive and accurate answer to their question. If the context doesn't contain enough information, clearly state what information is missing and provide any relevant general knowledge that might help.
-
 CONTEXT FROM DOCUMENT OR VIDEO:
 {context}
-
 USER QUESTION: {query}
-
 INSTRUCTIONS:
 1. Answer based primarily on the provided context
 2. Be specific and detailed in your response
@@ -276,10 +253,8 @@ INSTRUCTIONS:
 4. Use clear, educational language
 5. Organize your answer with bullet points or sections if helpful
 6. If you find contradictory information, mention it
-
 ANSWER:"""
     return prompt
-
 def get_llm_response(prompt):
     """Get response from Ollama with better error handling and parameters"""
     try:
@@ -294,7 +269,7 @@ def get_llm_response(prompt):
                     "temperature": 0.3,
                     "top_p": 0.85,
                     "top_k": 40,
-                    "num_predict": 500,
+                    "num_predict": 1000,  # Increased for quiz generation
                     "repeat_penalty": 1.1,
                     "num_ctx": 4096
                 }
@@ -321,13 +296,12 @@ def get_llm_response(prompt):
         error_msg = f"Error during response generation: {str(e)}"
         logger.error(f"❌ {error_msg}")
         raise ValueError(error_msg)
-
 @app.route('/api/answer-question', methods=['POST'])
 def answer_question():
     """Main endpoint for answering questions about uploaded documents or YouTube videos"""
     request_id = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     logger.info(f"🚀 New request [{request_id}] received")
-    
+   
     try:
         youtube_url = request.form.get('youtube_url', '').strip()
         question = request.form.get('question', '').strip()
@@ -335,15 +309,12 @@ def answer_question():
         if not question:
             logger.warning(f"❌ [{request_id}] No question provided")
             return jsonify({"error": "No question provided"}), 400
-
         # Initialize Ollama
         initialize_ollama()
-
         # Process input based on type (file or YouTube URL)
         source_type = "youtube" if youtube_url else "file"
         text = ""
         source_name = youtube_url if youtube_url else ""
-
         if source_type == "file":
             if 'file' not in request.files:
                 logger.warning(f"❌ [{request_id}] No file uploaded")
@@ -377,11 +348,9 @@ def answer_question():
         else:
             logger.info(f"🎥 [{request_id}] Processing YouTube URL: {youtube_url}, Question: {question[:100]}...")
             text = extract_text_from_youtube(youtube_url)
-
         if not text or len(text.strip()) < 10:
             logger.warning(f"❌ [{request_id}] No meaningful text extracted")
             return jsonify({"error": "No meaningful text could be extracted from the source"}), 400
-
         # Build knowledge base
         logger.info(f"🔄 [{request_id}] Building knowledge base...")
         cleaned_text = clean_text(text)
@@ -390,7 +359,6 @@ def answer_question():
         if not chunks:
             logger.warning(f"❌ [{request_id}] No text chunks created")
             return jsonify({"error": "Could not create text chunks from the source"}), 400
-
         # Create search index
         index, chunks = create_faiss_index(chunks)
         
@@ -402,7 +370,6 @@ def answer_question():
             'index': index,
             'timestamp': datetime.now().isoformat()
         }
-
         # Retrieve relevant chunks and generate answer
         logger.info(f"🔍 [{request_id}] Retrieving relevant information...")
         retrieved_chunks = retrieve_chunks(question, index, chunks)
@@ -410,7 +377,6 @@ def answer_question():
         logger.info(f"🤖 [{request_id}] Generating answer...")
         prompt = construct_prompt(question, retrieved_chunks)
         answer = get_llm_response(prompt)
-
         # Prepare response
         response_data = {
             "message": "Answer generated successfully",
@@ -422,10 +388,8 @@ def answer_question():
             "chunks_used": len(retrieved_chunks),
             "total_chunks": len(chunks)
         }
-
         logger.info(f"✅ [{request_id}] Request completed successfully")
         return jsonify(response_data)
-
     except Exception as e:
         error_details = traceback.format_exc()
         logger.error(f"❌ [{request_id}] Unexpected error: {str(e)}\n{error_details}")
@@ -434,7 +398,381 @@ def answer_question():
             "request_id": request_id,
             "details": "Check server logs for more information"
         }), 500
+@app.route('/api/generate-quiz', methods=['POST'])
+def generate_quiz():
+    """Endpoint for generating a quiz based on the source"""
+    request_id = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    logger.info(f"🚀 New quiz generation request [{request_id}] received")
+   
+    try:
+        num_questions = int(request.form.get('num_questions', 5))
+        difficulty = request.form.get('difficulty', 'medium').lower()
+        youtube_url = request.form.get('youtube_url', '').strip()
+        
+        if num_questions < 1 or num_questions > 20:
+            return jsonify({"error": "Number of questions must be between 1 and 20"}), 400
+        
+        if difficulty not in ['easy', 'medium', 'hard']:
+            return jsonify({"error": "Invalid difficulty level"}), 400
+        # Initialize Ollama
+        initialize_ollama()
+        # Process input based on type (file or YouTube URL)
+        source_type = "youtube" if youtube_url else "file"
+        text = ""
+        source_name = youtube_url if youtube_url else ""
+        if source_type == "file":
+            if 'file' not in request.files:
+                logger.warning(f"❌ [{request_id}] No file uploaded")
+                return jsonify({"error": "No file uploaded"}), 400
+            file = request.files['file']
+            if file.filename == '':
+                logger.warning(f"❌ [{request_id}] No file selected")
+                return jsonify({"error": "No file selected"}), 400
+            allowed_extensions = ('.pdf', '.mp3', '.wav')
+            if not file.filename.lower().endswith(allowed_extensions):
+                logger.warning(f"❌ [{request_id}] Invalid file type: {file.filename}")
+                return jsonify({"error": "Please upload a valid PDF or audio file (MP3, WAV)"}), 400
+            source_name = file.filename
+            logger.info(f"📁 [{request_id}] Processing file: {file.filename}")
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{request_id}_{file.filename}")
+            file.save(file_path)
+            try:
+                if file.filename.lower().endswith('.pdf'):
+                    logger.info(f"📄 [{request_id}] Processing PDF file...")
+                    text = extract_text_from_pdf(file_path)
+                else:
+                    logger.info(f"🎵 [{request_id}] Processing audio file...")
+                    text = transcribe_audio(file_path)
+            finally:
+                if os.path.exists(file_path):
+                    try:
+                        os.remove(file_path)
+                        logger.info(f"🗑 [{request_id}] Temporary file cleaned up")
+                    except Exception as e:
+                        logger.warning(f"⚠ [{request_id}] Failed to remove temporary file: {e}")
+        else:
+            logger.info(f"🎥 [{request_id}] Processing YouTube URL: {youtube_url}")
+            text = extract_text_from_youtube(youtube_url)
+        if not text or len(text.strip()) < 10:
+            logger.warning(f"❌ [{request_id}] No meaningful text extracted")
+            return jsonify({"error": "No meaningful text could be extracted from the source"}), 400
+        # Clean text and limit context size for prompt
+        cleaned_text = clean_text(text)
+        context = cleaned_text[:20000]  # Limit to ~20000 chars to fit context
+        # Construct prompt for quiz generation with strict JSON enforcement
+        logger.info(f"🤖 [{request_id}] Generating quiz with {num_questions} {difficulty} questions...")
+        prompt = f"""You are StudyMate, an intelligent quiz generator. Your task is to generate exactly {num_questions} {difficulty} multiple-choice questions based on the provided context from a document or video transcript.
+**Difficulty Guidelines**:
+- **Easy**: Focus on basic facts and definitions.
+- **Medium**: Require understanding and application of concepts.
+- **Hard**: Involve analysis, inference, or critical thinking.
+**Requirements**:
+- Generate exactly {num_questions} questions.
+- Each question must be directly based on the provided context.
+- Each question must have exactly 4 options labeled A, B, C, D.
+- Each question must have exactly one correct option.
+- Provide a brief explanation (1-2 sentences) for why the correct answer is correct.
+- Output **only** valid JSON with no additional text, comments, or markdown.
+- Ensure the JSON is properly formatted with correct syntax (e.g., proper quotes, commas, and brackets).
+- Do not include any extra text like ```json
+**Output Format**:
+{{
+  "questions": [
+    {{
+      "question": "Question text here",
+      "options": ["A. Option1", "B. Option2", "C. Option3", "D. Option4"],
+      "correct": "A",
+      "explanation": "Brief explanation here"
+    }},
+    ...
+  ]
+}}
+**Context**:
+{context}
+"""
+        # Retry mechanism for handling malformed JSON
+        max_retries = 2
+        response_text = None
+        for attempt in range(max_retries):
+            try:
+                response_text = get_llm_response(prompt)
+                logger.info(f"[{request_id}] Raw LLM response (attempt {attempt + 1}): {response_text[:200]}...")
+                # Clean response by removing markdown or extra text
+                if response_text.startswith('```json'):
+                    response_text = response_text.strip('```json').strip('```').strip()
+                # Parse JSON
+                quiz_data = json.loads(response_text)
+                questions = quiz_data.get('questions', [])
+                if len(questions) != num_questions:
+                    raise ValueError(f"Generated {len(questions)} questions instead of {num_questions}")
+                
+                corrects = []
+                explanations = []
+                frontend_questions = []
+                
+                for q in questions:
+                    if not all(key in q for key in ['question', 'options', 'correct', 'explanation']):
+                        raise ValueError("Invalid question format: missing required keys")
+                    if len(q['options']) != 4:
+                        raise ValueError("Each question must have exactly 4 options")
+                    correct_label = q['correct'].upper()
+                    if correct_label not in 'ABCD':
+                        raise ValueError("Correct answer must be A, B, C, or D")
+                    correct_idx = 'ABCD'.index(correct_label)
+                    corrects.append(correct_idx)
+                    explanations.append(q['explanation'])
+                    frontend_questions.append({
+                        "question": q['question'],
+                        "options": q['options']
+                    })
+                
+                # Store quiz data
+                quiz_id = request_id
+                quiz_store[quiz_id] = {
+                    "corrects": corrects,
+                    "explanations": explanations,
+                    "source_name": source_name,
+                    "source_type": source_type,
+                    "timestamp": datetime.now().isoformat()
+                }
+                
+                logger.info(f"✅ [{request_id}] Quiz generated successfully with {num_questions} questions")
+                return jsonify({
+                    "quiz_id": quiz_id,
+                    "questions": frontend_questions
+                })
+                
+            except json.JSONDecodeError as json_err:
+                logger.warning(f"❌ [{request_id}] JSON parse error on attempt {attempt + 1}: {str(json_err)}")
+                if attempt < max_retries - 1:
+                    logger.info(f"🔄 [{request_id}] Retrying with stricter prompt...")
+                    prompt += "\n\n**CRITICAL**: Ensure the output is valid JSON only, with no extra text, markdown, or incomplete structures."
+                else:
+                    logger.error(f"❌ [{request_id}] Failed to parse JSON after {max_retries} attempts")
+                    return jsonify({
+                        "error": "Failed to parse quiz data from model response",
+                        "request_id": request_id,
+                        "details": f"Raw response: {response_text[:500]}..."
+                    }), 500
+            except ValueError as ve:
+                logger.error(f"❌ [{request_id}] Invalid quiz data: {str(ve)}")
+                return jsonify({
+                    "error": f"Invalid quiz data generated: {str(ve)}",
+                    "request_id": request_id
+                }), 500
+        
+    except Exception as e:
+        error_details = traceback.format_exc()
+        logger.error(f"❌ [{request_id}] Unexpected error: {str(e)}\n{error_details}")
+        return jsonify({
+            "error": str(e),
+            "request_id": request_id,
+            "details": "Check server logs for more information"
+        }), 500
+@app.route('/api/generate-study-plan', methods=['POST'])
+def generate_study_plan():
+    """Endpoint for generating a study plan based on the source"""
+    request_id = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    logger.info(f"🚀 New study plan generation request [{request_id}] received")
+   
+    try:
+        num_days = int(request.form.get('num_days', 7))
+        
+        if num_days < 1 or num_days > 30:
+            return jsonify({"error": "Number of days must be between 1 and 30"}), 400
+        
+        # Initialize Ollama
+        initialize_ollama()
+        # Process input (only PDF for now)
+        source_type = "file"
+        text = ""
+        source_name = ""
+        if 'file' not in request.files:
+            logger.warning(f"❌ [{request_id}] No file uploaded")
+            return jsonify({"error": "No file uploaded"}), 400
+        file = request.files['file']
+        if file.filename == '':
+            logger.warning(f"❌ [{request_id}] No file selected")
+            return jsonify({"error": "No file selected"}), 400
+        if not file.filename.lower().endswith('.pdf'):
+            logger.warning(f"❌ [{request_id}] Invalid file type: {file.filename}")
+            return jsonify({"error": "Please upload a valid PDF file"}), 400
+        source_name = file.filename
+        logger.info(f"📁 [{request_id}] Processing file: {file.filename}")
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{request_id}_{file.filename}")
+        file.save(file_path)
+        try:
+            logger.info(f"📄 [{request_id}] Processing PDF file...")
+            text = extract_text_from_pdf(file_path)
+        finally:
+            if os.path.exists(file_path):
+                try:
+                    os.remove(file_path)
+                    logger.info(f"🗑 [{request_id}] Temporary file cleaned up")
+                except Exception as e:
+                    logger.warning(f"⚠ [{request_id}] Failed to remove temporary file: {e}")
+        if not text or len(text.strip()) < 10:
+            logger.warning(f"❌ [{request_id}] No meaningful text extracted")
+            return jsonify({"error": "No meaningful text could be extracted from the source"}), 400
+        # Clean text and limit context size for prompt
+        cleaned_text = clean_text(text)
+        context = cleaned_text[:20000]  # Limit to ~20000 chars to fit context
+        # Construct prompt for study plan generation with strict JSON enforcement
+        logger.info(f"🤖 [{request_id}] Generating study plan for {num_days} days...")
+        prompt = f"""You are StudyMate, an intelligent study planner. Your task is to generate a rough study plan to complete the topics in the provided context within exactly {num_days} days.
 
+First, identify the main topics/sections from the context.
+
+Then, divide them evenly across {num_days} days, ensuring balanced coverage.
+
+For each day:
+- List 2-4 key topics to cover.
+- Suggest 3-5 actionable tasks/activities (e.g., read section X, summarize key points, solve exercises).
+- Estimate time (e.g., "2-3 hours").
+
+**Requirements**:
+- Generate exactly {num_days} days.
+- Each day must be based on the provided context.
+- Output **only** valid JSON with no additional text, comments, or markdown.
+- Ensure the JSON is properly formatted with correct syntax.
+
+**Output Format**:
+{{
+  "days": [
+    {{
+      "day": 1,
+      "topics": ["Topic 1", "Topic 2"],
+      "tasks": ["Read chapter 1", "Take notes on key concepts", "Review examples"],
+      "estimated_time": "2-3 hours"
+    }},
+    ...
+  ]
+}}
+
+**Context**:
+{context}
+"""
+        # Retry mechanism for handling malformed JSON
+        max_retries = 2
+        response_text = None
+        for attempt in range(max_retries):
+            try:
+                response_text = get_llm_response(prompt)
+                logger.info(f"[{request_id}] Raw LLM response (attempt {attempt + 1}): {response_text[:200]}...")
+                # Clean response by removing markdown or extra text
+                if response_text.startswith('```json') or response_text.startswith('```'):
+                    response_text = response_text.strip('```json').strip('```').strip()
+                # Parse JSON
+                plan_data = json.loads(response_text)
+                days = plan_data.get('days', [])
+                if len(days) != num_days:
+                    raise ValueError(f"Generated {len(days)} days instead of {num_days}")
+                
+                for d in days:
+                    if not all(key in d for key in ['day', 'topics', 'tasks', 'estimated_time']):
+                        raise ValueError("Invalid day format: missing required keys")
+                    if not isinstance(d['topics'], list) or len(d['topics']) < 2 or len(d['topics']) > 4:
+                        raise ValueError("Each day must have 2-4 topics")
+                    if not isinstance(d['tasks'], list) or len(d['tasks']) < 3 or len(d['tasks']) > 5:
+                        raise ValueError("Each day must have 3-5 tasks")
+                
+                logger.info(f"✅ [{request_id}] Study plan generated successfully with {num_days} days")
+                return jsonify({
+                    "request_id": request_id,
+                    "days": days
+                })
+                
+            except json.JSONDecodeError as json_err:
+                logger.warning(f"❌ [{request_id}] JSON parse error on attempt {attempt + 1}: {str(json_err)}")
+                if attempt < max_retries - 1:
+                    logger.info(f"🔄 [{request_id}] Retrying with stricter prompt...")
+                    prompt += "\n\n**CRITICAL**: Ensure the output is valid JSON only, with no extra text, markdown, or incomplete structures."
+                else:
+                    logger.error(f"❌ [{request_id}] Failed to parse JSON after {max_retries} attempts")
+                    return jsonify({
+                        "error": "Failed to parse study plan data from model response",
+                        "request_id": request_id,
+                        "details": f"Raw response: {response_text[:500]}..."
+                    }), 500
+            except ValueError as ve:
+                logger.error(f"❌ [{request_id}] Invalid study plan data: {str(ve)}")
+                return jsonify({
+                    "error": f"Invalid study plan data generated: {str(ve)}",
+                    "request_id": request_id
+                }), 500
+        
+    except Exception as e:
+        error_details = traceback.format_exc()
+        logger.error(f"❌ [{request_id}] Unexpected error: {str(e)}\n{error_details}")
+        return jsonify({
+            "error": str(e),
+            "request_id": request_id,
+            "details": "Check server logs for more information"
+        }), 500
+@app.route('/api/evaluate-quiz', methods=['POST'])
+def evaluate_quiz():
+    """Endpoint for evaluating quiz answers"""
+    try:
+        data = request.json
+        if not data:
+            return jsonify({"error": "No JSON data provided"}), 400
+        
+        quiz_id = data.get('quiz_id')
+        user_answers = data.get('user_answers')
+        
+        if not quiz_id or not isinstance(user_answers, list):
+            return jsonify({"error": "Missing quiz_id or user_answers"}), 400
+        
+        if quiz_id not in quiz_store:
+            logger.warning(f"❌ Quiz ID {quiz_id} not found")
+            return jsonify({"error": "Invalid or expired quiz ID"}), 404
+        
+        stored = quiz_store[quiz_id]
+        corrects = stored['corrects']
+        explanations = stored['explanations']
+        
+        if len(user_answers) != len(corrects):
+            return jsonify({"error": f"Mismatch in number of answers: expected {len(corrects)}, got {len(user_answers)}"}), 400
+        
+        details = []
+        correct_count = 0
+        
+        for i, user_ans in enumerate(user_answers):
+            if not isinstance(user_ans, int) or user_ans < 0 or user_ans > 3:
+                details.append({
+                    "user_answer": "Invalid",
+                    "correct_answer": "ABCD"[corrects[i]],
+                    "is_correct": False,
+                    "explanation": explanations[i]
+                })
+                continue
+              
+            is_correct = (user_ans == corrects[i])
+            if is_correct:
+                correct_count += 1
+              
+            details.append({
+                "user_answer": "ABCD"[user_ans],
+                "correct_answer": "ABCD"[corrects[i]],
+                "is_correct": is_correct,
+                "explanation": explanations[i]
+            })
+        
+        score = (correct_count / len(corrects)) * 100 if corrects else 0
+        
+        # Cleanup
+        del quiz_store[quiz_id]
+        
+        logger.info(f"✅ Quiz {quiz_id} evaluated successfully")
+        return jsonify({
+            "score": score,
+            "details": details
+        })
+        
+    except Exception as e:
+        error_details = traceback.format_exc()
+        logger.error(f"❌ Unexpected error in evaluate_quiz: {str(e)}\n{error_details}")
+        return jsonify({"error": str(e)}), 500
 @app.route('/api/health', methods=['GET'])
 def detailed_health_check():
     """Detailed health check for debugging"""
@@ -452,7 +790,6 @@ def detailed_health_check():
     except Exception as e:
         health_status["ollama_connection"] = f"failed: {str(e)}"
     return jsonify(health_status)
-
 if __name__ == "__main__":
     logger.info("🚀 Starting StudyMate Flask API...")
     logger.info(f"📁 Upload folder: {UPLOAD_FOLDER}")
