@@ -41,6 +41,7 @@ except Exception as e:
 
 # Store processed documents in memory with FAISS indices
 document_store = {}
+quiz_store = {}
 
 @app.route('/', methods=['GET'])
 def health_check():
@@ -98,8 +99,19 @@ def extract_text_from_youtube(url):
     try:
         logger.info(f"🎥 Extracting transcript from YouTube URL: {url}")
         video_id = get_video_id(url)
-        transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['en'])
-        text = " ".join([entry['text'] for entry in transcript])
+
+        # Create instance of API
+        ytt_api = YouTubeTranscriptApi()
+
+        # Fetch transcript (with language priority)
+        fetched_transcript = ytt_api.get_transcript(video_id, languages=['en'])
+
+        # Convert transcript object to raw data
+        raw_transcript = fetched_transcript
+
+        # Join into a single text string
+        text = " ".join([entry['text'] for entry in raw_transcript])
+
         logger.info(f"✅ Extracted {len(text)} characters from YouTube transcript")
         return text
     except Exception as e:
@@ -143,7 +155,7 @@ def transcribe_audio(file_path):
                 text = recognizer.recognize_google(audio_data)
                 logger.info(f"✅ Google Speech Recognition successful")
             except sr.UnknownValueError:
-                logger.warning("⚠️ Google Speech Recognition could not understand audio")
+                logger.warning("⚠ Google Speech Recognition could not understand audio")
                 try:
                     text = recognizer.recognize_sphinx(audio_data)
                     logger.info("✅ Sphinx Recognition successful")
@@ -166,7 +178,7 @@ def clean_text(text):
     if not text:
         return ""
     text = re.sub(r'\s+', ' ', text.strip())
-    text = re.sub(r'[^\w\s\.\,\!\?\;\:\-\(\)]', ' ', text)
+    text = re.sub(r'[^\w\s\.\,\!\?\;\:\-$$      $$]', ' ', text)
     text = re.sub(r'--- Page \d+ ---', '', text)
     return text
 
@@ -220,7 +232,7 @@ def create_faiss_index(chunks):
 def retrieve_chunks(query, index, chunks, k=5):
     """Retrieve most relevant chunks with better scoring"""
     if index is None or not chunks:
-        logger.warning("⚠️ No index or chunks available for retrieval")
+        logger.warning("⚠ No index or chunks available for retrieval")
         return []
     try:
         logger.info(f"🔍 Searching for relevant chunks for query: '{query[:50]}...'")
@@ -284,7 +296,7 @@ def get_llm_response(prompt):
                     "temperature": 0.3,
                     "top_p": 0.85,
                     "top_k": 40,
-                    "num_predict": 500,
+                    "num_predict": 1000,  # Increased for quiz generation
                     "repeat_penalty": 1.1,
                     "num_ctx": 4096
                 }
@@ -295,7 +307,7 @@ def get_llm_response(prompt):
             result = response.json()
             answer = result.get("response", "").strip()
             if not answer:
-                logger.warning("⚠️ Empty response from Ollama")
+                logger.warning("⚠ Empty response from Ollama")
                 return "I apologize, but I couldn't generate a proper response. Please try rephrasing your question."
             logger.info(f"✅ Generated response of {len(answer)} characters")
             return answer
@@ -361,9 +373,9 @@ def answer_question():
                 if os.path.exists(file_path):
                     try:
                         os.remove(file_path)
-                        logger.info(f"🗑️ [{request_id}] Temporary file cleaned up")
+                        logger.info(f"🗑 [{request_id}] Temporary file cleaned up")
                     except Exception as e:
-                        logger.warning(f"⚠️ [{request_id}] Failed to remove temporary file: {e}")
+                        logger.warning(f"⚠ [{request_id}] Failed to remove temporary file: {e}")
         else:
             logger.info(f"🎥 [{request_id}] Processing YouTube URL: {youtube_url}, Question: {question[:100]}...")
             text = extract_text_from_youtube(youtube_url)
@@ -424,6 +436,256 @@ def answer_question():
             "request_id": request_id,
             "details": "Check server logs for more information"
         }), 500
+
+@app.route('/api/generate-quiz', methods=['POST'])
+def generate_quiz():
+    """Endpoint for generating a quiz based on the source"""
+    request_id = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    logger.info(f"🚀 New quiz generation request [{request_id}] received")
+    
+    try:
+        num_questions = int(request.form.get('num_questions', 5))
+        difficulty = request.form.get('difficulty', 'medium').lower()
+        youtube_url = request.form.get('youtube_url', '').strip()
+        
+        if num_questions < 1 or num_questions > 20:
+            return jsonify({"error": "Number of questions must be between 1 and 20"}), 400
+        
+        if difficulty not in ['easy', 'medium', 'hard']:
+            return jsonify({"error": "Invalid difficulty level"}), 400
+
+        # Initialize Ollama
+        initialize_ollama()
+
+        # Process input based on type (file or YouTube URL)
+        source_type = "youtube" if youtube_url else "file"
+        text = ""
+        source_name = youtube_url if youtube_url else ""
+
+        if source_type == "file":
+            if 'file' not in request.files:
+                logger.warning(f"❌ [{request_id}] No file uploaded")
+                return jsonify({"error": "No file uploaded"}), 400
+            file = request.files['file']
+            if file.filename == '':
+                logger.warning(f"❌ [{request_id}] No file selected")
+                return jsonify({"error": "No file selected"}), 400
+            allowed_extensions = ('.pdf', '.mp3', '.wav')
+            if not file.filename.lower().endswith(allowed_extensions):
+                logger.warning(f"❌ [{request_id}] Invalid file type: {file.filename}")
+                return jsonify({"error": "Please upload a valid PDF or audio file (MP3, WAV)"}), 400
+            source_name = file.filename
+            logger.info(f"📁 [{request_id}] Processing file: {file.filename}")
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{request_id}_{file.filename}")
+            file.save(file_path)
+            try:
+                if file.filename.lower().endswith('.pdf'):
+                    logger.info(f"📄 [{request_id}] Processing PDF file...")
+                    text = extract_text_from_pdf(file_path)
+                else:
+                    logger.info(f"🎵 [{request_id}] Processing audio file...")
+                    text = transcribe_audio(file_path)
+            finally:
+                if os.path.exists(file_path):
+                    try:
+                        os.remove(file_path)
+                        logger.info(f"🗑 [{request_id}] Temporary file cleaned up")
+                    except Exception as e:
+                        logger.warning(f"⚠ [{request_id}] Failed to remove temporary file: {e}")
+        else:
+            logger.info(f"🎥 [{request_id}] Processing YouTube URL: {youtube_url}")
+            text = extract_text_from_youtube(youtube_url)
+
+        if not text or len(text.strip()) < 10:
+            logger.warning(f"❌ [{request_id}] No meaningful text extracted")
+            return jsonify({"error": "No meaningful text could be extracted from the source"}), 400
+
+        # Clean text and limit context size for prompt
+        cleaned_text = clean_text(text)
+        context = cleaned_text[:20000]  # Limit to ~20000 chars to fit context
+
+        # Construct prompt for quiz generation with strict JSON enforcement
+        logger.info(f"🤖 [{request_id}] Generating quiz with {num_questions} {difficulty} questions...")
+        prompt = f"""You are StudyMate, an intelligent quiz generator. Your task is to generate exactly {num_questions} {difficulty} multiple-choice questions based on the provided context from a document or video transcript.
+
+**Difficulty Guidelines**:
+- **Easy**: Focus on basic facts and definitions.
+- **Medium**: Require understanding and application of concepts.
+- **Hard**: Involve analysis, inference, or critical thinking.
+
+**Requirements**:
+- Generate exactly {num_questions} questions.
+- Each question must be directly based on the provided context.
+- Each question must have exactly 4 options labeled A, B, C, D.
+- Each question must have exactly one correct option.
+- Provide a brief explanation (1-2 sentences) for why the correct answer is correct.
+- Output **only** valid JSON with no additional text, comments, or markdown.
+- Ensure the JSON is properly formatted with correct syntax (e.g., proper quotes, commas, and brackets).
+- Do not include any extra text like ```json
+
+**Output Format**:
+{{
+  "questions": [
+    {{
+      "question": "Question text here",
+      "options": ["A. Option1", "B. Option2", "C. Option3", "D. Option4"],
+      "correct": "A",
+      "explanation": "Brief explanation here"
+    }},
+    ...
+  ]
+}}
+
+**Context**:
+{context}
+"""
+
+        # Retry mechanism for handling malformed JSON
+        max_retries = 2
+        response_text = None
+        for attempt in range(max_retries):
+            try:
+                response_text = get_llm_response(prompt)
+                logger.info(f"[{request_id}] Raw LLM response (attempt {attempt + 1}): {response_text[:200]}...")
+
+                # Clean response by removing markdown or extra text
+                if response_text.startswith('```json') or response_text.startswith('```'):
+                    response_text = response_text.strip('```json').strip('```').strip()
+
+                # Parse JSON
+                quiz_data = json.loads(response_text)
+                questions = quiz_data.get('questions', [])
+                if len(questions) != num_questions:
+                    raise ValueError(f"Generated {len(questions)} questions instead of {num_questions}")
+                
+                corrects = []
+                explanations = []
+                frontend_questions = []
+                
+                for q in questions:
+                    if not all(key in q for key in ['question', 'options', 'correct', 'explanation']):
+                        raise ValueError("Invalid question format: missing required keys")
+                    if len(q['options']) != 4:
+                        raise ValueError("Each question must have exactly 4 options")
+                    correct_label = q['correct'].upper()
+                    if correct_label not in 'ABCD':
+                        raise ValueError("Correct answer must be A, B, C, or D")
+                    correct_idx = 'ABCD'.index(correct_label)
+                    corrects.append(correct_idx)
+                    explanations.append(q['explanation'])
+                    frontend_questions.append({
+                        "question": q['question'],
+                        "options": q['options']
+                    })
+                
+                # Store quiz data
+                quiz_id = request_id
+                quiz_store[quiz_id] = {
+                    "corrects": corrects,
+                    "explanations": explanations,
+                    "source_name": source_name,
+                    "source_type": source_type,
+                    "timestamp": datetime.now().isoformat()
+                }
+                
+                logger.info(f"✅ [{request_id}] Quiz generated successfully with {num_questions} questions")
+                return jsonify({
+                    "quiz_id": quiz_id,
+                    "questions": frontend_questions
+                })
+                
+            except json.JSONDecodeError as json_err:
+                logger.warning(f"❌ [{request_id}] JSON parse error on attempt {attempt + 1}: {str(json_err)}")
+                if attempt < max_retries - 1:
+                    logger.info(f"🔄 [{request_id}] Retrying with stricter prompt...")
+                    prompt += "\n\n**CRITICAL**: Ensure the output is valid JSON only, with no extra text, markdown, or incomplete structures."
+                else:
+                    logger.error(f"❌ [{request_id}] Failed to parse JSON after {max_retries} attempts")
+                    return jsonify({
+                        "error": "Failed to parse quiz data from model response",
+                        "request_id": request_id,
+                        "details": f"Raw response: {response_text[:500]}..."
+                    }), 500
+            except ValueError as ve:
+                logger.error(f"❌ [{request_id}] Invalid quiz data: {str(ve)}")
+                return jsonify({
+                    "error": f"Invalid quiz data generated: {str(ve)}",
+                    "request_id": request_id
+                }), 500
+        
+    except Exception as e:
+        error_details = traceback.format_exc()
+        logger.error(f"❌ [{request_id}] Unexpected error: {str(e)}\n{error_details}")
+        return jsonify({
+            "error": str(e),
+            "request_id": request_id,
+            "details": "Check server logs for more information"
+        }), 500
+
+@app.route('/api/evaluate-quiz', methods=['POST'])
+def evaluate_quiz():
+    """Endpoint for evaluating quiz answers"""
+    try:
+        data = request.json
+        if not data:
+            return jsonify({"error": "No JSON data provided"}), 400
+        
+        quiz_id = data.get('quiz_id')
+        user_answers = data.get('user_answers')
+        
+        if not quiz_id or not isinstance(user_answers, list):
+            return jsonify({"error": "Missing quiz_id or user_answers"}), 400
+        
+        if quiz_id not in quiz_store:
+            logger.warning(f"❌ Quiz ID {quiz_id} not found")
+            return jsonify({"error": "Invalid or expired quiz ID"}), 404
+        
+        stored = quiz_store[quiz_id]
+        corrects = stored['corrects']
+        explanations = stored['explanations']
+        
+        if len(user_answers) != len(corrects):
+            return jsonify({"error": f"Mismatch in number of answers: expected {len(corrects)}, got {len(user_answers)}"}), 400
+        
+        details = []
+        correct_count = 0
+        
+        for i, user_ans in enumerate(user_answers):
+            if not isinstance(user_ans, int) or user_ans < 0 or user_ans > 3:
+                details.append({
+                    "user_answer": "Invalid",
+                    "correct_answer": "ABCD"[corrects[i]],
+                    "is_correct": False,
+                    "explanation": explanations[i]
+                })
+                continue
+                
+            is_correct = (user_ans == corrects[i])
+            if is_correct:
+                correct_count += 1
+                
+            details.append({
+                "user_answer": "ABCD"[user_ans],
+                "correct_answer": "ABCD"[corrects[i]],
+                "is_correct": is_correct,
+                "explanation": explanations[i]
+            })
+        
+        score = (correct_count / len(corrects)) * 100 if corrects else 0
+        
+        # Cleanup
+        del quiz_store[quiz_id]
+        
+        logger.info(f"✅ Quiz {quiz_id} evaluated successfully")
+        return jsonify({
+            "score": score,
+            "details": details
+        })
+        
+    except Exception as e:
+        error_details = traceback.format_exc()
+        logger.error(f"❌ Unexpected error in evaluate_quiz: {str(e)}\n{error_details}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/health', methods=['GET'])
 def detailed_health_check():
